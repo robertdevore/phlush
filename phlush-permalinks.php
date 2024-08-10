@@ -36,7 +36,7 @@ define( 'PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME', 'phlush_permalinks_flush_action
  * @since  1.0.0
  */
 function phlush_permalinks_schedule_permalink_flush() {
-    $interval = get_option( PHLUSH_PERMALINKS_OPTION_NAME, 60 ); // Default to 60 minutes
+    $interval = get_option( PHLUSH_PERMALINKS_OPTION_NAME, 5 ); // Default to 5 minutes
     if ( ! wp_next_scheduled( 'phlush_permalinks_flush_permalinks' ) ) {
         wp_schedule_event( time(), 'phlush_permalinks_custom_interval', 'phlush_permalinks_flush_permalinks' );
     }
@@ -59,12 +59,12 @@ register_deactivation_hook( __FILE__, 'phlush_permalinks_clear_scheduled_event' 
  * @since  1.0.0
  */
 function phlush_permalinks_add_custom_cron_interval( $schedules ) {
-    $interval = absint( get_option( PHLUSH_PERMALINKS_OPTION_NAME, 60 ) ); // Sanitize interval value
+    $interval = absint( get_option( PHLUSH_PERMALINKS_OPTION_NAME, 5 ) ); // Sanitize interval value
 
     // Create custom interval.
     $schedules['phlush_permalinks_custom_interval'] = [
         'interval' => $interval * 60, // Convert minutes to seconds
-        'display'  => esc_html__( 'Custom Interval (' . $interval . ' minutes)', 'phlush-permalinks' ),
+        'display'  => esc_html__( "Custom Interval ({$interval} minutes)", 'phlush-permalinks' ),
     ];
     return $schedules;
 }
@@ -101,11 +101,12 @@ add_action( 'admin_menu', 'phlush_permalinks_add_settings_page' );
 /**
  * Enqueues the Select2 library and custom scripts/styles for the settings page.
  * 
- * @since  1.0.0
+ * @since 1.0.0
  */
 function phlush_permalinks_enqueue_admin_scripts( $hook ) {
+    // Check if the current page is the Phlush Permalinks settings page.
     if ( $hook !== 'settings_page_' . PHLUSH_PERMALINKS_PLUGIN_SLUG ) {
-        return;
+        return; // Exit if not on the correct settings page.
     }
 
     // Define the path to the assets folder.
@@ -115,7 +116,7 @@ function phlush_permalinks_enqueue_admin_scripts( $hook ) {
     wp_enqueue_style( 'select2-css', $plugin_url . 'assets/css/select2.min.css', [], '4.1.0' );
     wp_enqueue_script( 'select2-js', $plugin_url . 'assets/js/select2.min.js', [ 'jquery' ], '4.1.0', true );
 
-    // Enqueue custom script for handling Select2.
+    // Enqueue custom script for handling Select2 initialization.
     wp_add_inline_script( 'select2-js', 'jQuery(document).ready(function($) { $(".phlush-permalinks-select2").select2(); });' );
 }
 add_action( 'admin_enqueue_scripts', 'phlush_permalinks_enqueue_admin_scripts' );
@@ -129,6 +130,8 @@ function phlush_permalinks_render_settings_page() {
     ?>
     <div id="phlush-permalinks" class="wrap">
         <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+        <p><?php esc_attr_e( 'Brought to you by', 'phlush-permalinks' ); ?> <a href="https://robertdevore.com/" target="_blank"><?php esc_attr_e( 'Robert DeVore', 'phlush-permalinks' ) ?></a> | <a href="https://robertdevore.com/contact">Get Support</a> | <a href="https://robertdevore.com/page-speed-optimization">Speed Tips</a> | <a href="https://robertdevore.com/wordpress-security-audit/">Security Audit</a></p>
+        <hr />
         <form method="post" action="options.php">
             <?php
             settings_fields( PHLUSH_PERMALINKS_PLUGIN_SLUG );
@@ -150,7 +153,7 @@ function phlush_permalinks_register_settings() {
     register_setting( PHLUSH_PERMALINKS_PLUGIN_SLUG, PHLUSH_PERMALINKS_OPTION_NAME, [
         'type'              => 'integer',
         'sanitize_callback' => 'absint',
-        'default'           => 60,
+        'default'           => 5,
     ]);
 
     register_setting( PHLUSH_PERMALINKS_PLUGIN_SLUG, PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, [
@@ -190,24 +193,35 @@ add_action( 'admin_init', 'phlush_permalinks_register_settings' );
  * @since  1.0.0
  */
 function phlush_permalinks_render_flush_interval_field() {
-    $interval = absint( get_option( PHLUSH_PERMALINKS_OPTION_NAME, 60 ) );
+    $interval = absint( get_option( PHLUSH_PERMALINKS_OPTION_NAME, 5 ) );
     echo '<input type="number" name="' . esc_attr( PHLUSH_PERMALINKS_OPTION_NAME ) . '" value="' . esc_attr( $interval ) . '" min="1" />';
 }
 
 /**
  * Renders the Select2 multi-select field for choosing which actions should trigger a permalink flush.
  * 
- * @since  1.0.0
+ * @since 1.0.0
  */
 function phlush_permalinks_render_flush_actions_field() {
-    $actions           = phlush_permalinks_sanitize_actions( get_option( PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, [] ) );
+    // Retrieve the saved actions, or use the full list of available actions as the default if nothing is saved.
+    $saved_actions = get_option( PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, [] );
+
+    // If no actions are saved yet, default to all available actions.
+    if ( empty( $saved_actions ) ) {
+        $saved_actions = array_keys( phlush_permalinks_get_available_actions() );
+    }
+
     $available_actions = phlush_permalinks_get_available_actions();
     
     echo '<select name="' . esc_attr( PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME ) . '[]" class="phlush-permalinks-select2" multiple="multiple" style="width: 100%;">';
+
+    // Loop through the available actions.
     foreach ( $available_actions as $action => $label ) {
-        $selected = in_array( $action, $actions, true ) ? 'selected="selected"' : '';
+        // Automatically select all actions by default if no specific selections are saved.
+        $selected = in_array( $action, $saved_actions, true ) ? 'selected="selected"' : '';
         echo '<option value="' . esc_attr( $action ) . '" ' . esc_attr( $selected ) . '>' . esc_html( $label ) . '</option>';
     }
+    
     echo '</select>';
 }
 
