@@ -78,7 +78,7 @@ add_filter( 'cron_schedules', 'phlush_permalinks_add_custom_cron_interval' );
  * 
  * @since 1.0.0
  */
-function phlush_permalinks_flush_permalinks_function( ) {
+function phlush_permalinks_flush_permalinks_function() {
     // Only flush once per request
     if ( defined( 'PHLUSH_PERMALINKS_FLUSHED' ) ) {
         return; // Exit if already flushed during this request
@@ -89,9 +89,9 @@ function phlush_permalinks_flush_permalinks_function( ) {
     // Ensure a valid post object is provided before proceeding
     if ( ! is_object( $post ) || ! isset( $post->post_type ) ) {
         if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-            error_log( "Phlush Permalinks: Flush function triggered without a valid post object on " . current_time( 'mysql' ) );
+            //error_log( "Phlush Permalinks: Flush function triggered without a valid post object on " . current_time( 'mysql' ) );
         }
-        return; // Exit if no valid post object
+        //return; // Exit if no valid post object
     }
 
     // Set the flag to indicate permalinks have been flushed
@@ -99,9 +99,12 @@ function phlush_permalinks_flush_permalinks_function( ) {
 
     // Log a message to debug.log to check if the function is being triggered.
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-        error_log( 'Phlush Permalinks: Flush function triggered on ' . current_time( 'mysql' ) );
         $post_type = get_post_type( $post );
-        error_log( "Phlush Permalinks: Flush function triggered for post type '{$post_type}' on " . current_time( 'mysql' ) );
+        if ( $post_type ) {
+            error_log( "Phlush Permalinks: Flush function triggered for post type '{$post_type}' on " . current_time( 'mysql' ) );
+        }
+
+        error_log( 'Phlush Permalinks: Specific action hook triggered on ' . current_time( 'mysql' ) );
     }
 
     // Flush the rewrite rules.
@@ -112,7 +115,7 @@ function phlush_permalinks_flush_permalinks_function( ) {
         error_log( 'Phlush Permalinks: Permalinks were flushed successfully on ' . current_time( 'mysql' ) );
     }
 }
-add_action( 'phlush_permalinks_flush_permalinks', 'phlush_permalinks_flush_permalinks_function', 10, 1 );
+add_action( 'phlush_permalinks_flush_permalinks', 'phlush_permalinks_flush_permalinks_function', 10 );
 
 /**
  * Adds the settings page under the WordPress 'Settings' menu.
