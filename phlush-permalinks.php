@@ -4,7 +4,7 @@
   * 
   * @link              https://robertdevore.com
   * @since             1.0.0
-  * @package           Plush_Permalinks
+  * @package           Phlush_Permalinks
   *
   * @wordpress-plugin
   * Plugin Name:          Phlush Permalinks
@@ -13,7 +13,7 @@
   * Version:              1.0.0
   * Author:               Robert DeVore
   * Author URI:           https://robertdevore.com
-  * License:              GPL-3.0+
+  * License:              GPLv3
   * License URI:          http://www.gnu.org/licenses/gpl-3.0.txt
   * Text Domain:          phlush-permalinks
   * Domain Path:          /languages
@@ -36,6 +36,9 @@ define( 'PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME', 'phlush_permalinks_flush_action
  * @since  1.0.0
  */
 function phlush_permalinks_schedule_permalink_flush() {
+    // Ensure custom cron interval is added before scheduling the event
+    add_filter( 'cron_schedules', 'phlush_permalinks_add_custom_cron_interval' );
+
     $interval = get_option( PHLUSH_PERMALINKS_OPTION_NAME, 5 ); // Default to 5 minutes
     if ( ! wp_next_scheduled( 'phlush_permalinks_flush_permalinks' ) ) {
         wp_schedule_event( time(), 'phlush_permalinks_custom_interval', 'phlush_permalinks_flush_permalinks' );
@@ -71,18 +74,45 @@ function phlush_permalinks_add_custom_cron_interval( $schedules ) {
 add_filter( 'cron_schedules', 'phlush_permalinks_add_custom_cron_interval' );
 
 /**
- * Function to flush permalinks. This is hooked to the custom cron interval.
+ * Function to flush permalinks and log the action.
  * 
- * @since  1.0.0
+ * @since 1.0.0
  */
-function phlush_permalinks_flush_permalinks_function() {
-    $result = flush_rewrite_rules( true ); // Force a complete rewrite of the .htaccess file
+function phlush_permalinks_flush_permalinks_function( ) {
+    // Only flush once per request
+    if ( defined( 'PHLUSH_PERMALINKS_FLUSHED' ) ) {
+        return; // Exit if already flushed during this request
+    }
+
+    global $post;
+
+    // Ensure a valid post object is provided before proceeding
+    if ( ! is_object( $post ) || ! isset( $post->post_type ) ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( "Phlush Permalinks: Flush function triggered without a valid post object on " . current_time( 'mysql' ) );
+        }
+        return; // Exit if no valid post object
+    }
+
+    // Set the flag to indicate permalinks have been flushed
+    define( 'PHLUSH_PERMALINKS_FLUSHED', true );
+
+    // Log a message to debug.log to check if the function is being triggered.
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log( 'Phlush Permalinks: Flush function triggered on ' . current_time( 'mysql' ) );
+        $post_type = get_post_type( $post );
+        error_log( "Phlush Permalinks: Flush function triggered for post type '{$post_type}' on " . current_time( 'mysql' ) );
+    }
+
+    // Flush the rewrite rules.
+    flush_rewrite_rules( true );
     
-    if ( ! $result ) {
-        error_log( 'Phlush Permalinks: Flushing rewrite rules failed.' );
+    // Log a message to debug.log to indicate that permalinks were flushed.
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        error_log( 'Phlush Permalinks: Permalinks were flushed successfully on ' . current_time( 'mysql' ) );
     }
 }
-add_action( 'phlush_permalinks_flush_permalinks', 'phlush_permalinks_flush_permalinks_function' );
+add_action( 'phlush_permalinks_flush_permalinks', 'phlush_permalinks_flush_permalinks_function', 10, 1 );
 
 /**
  * Adds the settings page under the WordPress 'Settings' menu.
@@ -159,7 +189,7 @@ function phlush_permalinks_register_settings() {
     register_setting( PHLUSH_PERMALINKS_PLUGIN_SLUG, PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, [
         'type'              => 'array',
         'sanitize_callback' => 'phlush_permalinks_sanitize_actions',
-        'default'           => [],
+        'default'           => array_keys( phlush_permalinks_get_available_actions() ), // Auto-select all by default
     ] );
 
     add_settings_section(
@@ -204,12 +234,7 @@ function phlush_permalinks_render_flush_interval_field() {
  */
 function phlush_permalinks_render_flush_actions_field() {
     // Retrieve the saved actions, or use the full list of available actions as the default if nothing is saved.
-    $saved_actions = get_option( PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, [] );
-
-    // If no actions are saved yet, default to all available actions.
-    if ( empty( $saved_actions ) ) {
-        $saved_actions = array_keys( phlush_permalinks_get_available_actions() );
-    }
+    $saved_actions = get_option( PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, array_keys( phlush_permalinks_get_available_actions() ) );
 
     $available_actions = phlush_permalinks_get_available_actions();
     
@@ -284,11 +309,22 @@ function phlush_permalinks_get_available_actions() {
  */
 function phlush_permalinks_hook_into_selected_actions() {
     // Retrieve and sanitize the selected actions from the options.
-    $actions = phlush_permalinks_sanitize_actions( get_option( PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, [] ) );
+    $actions = phlush_permalinks_sanitize_actions( get_option( PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, array_keys( phlush_permalinks_get_available_actions() ) ) );
 
     // Loop through each action and hook the flush function to it.
     foreach ( $actions as $action ) {
         add_action( $action, 'phlush_permalinks_flush_permalinks_function' );
+    }
+
+    // Hook into the REST API saves for Gutenberg compatibility
+    add_action( 'rest_after_insert_post', 'phlush_permalinks_flush_permalinks_function', 10, 3 );
+    add_action( 'rest_after_insert_page', 'phlush_permalinks_flush_permalinks_function', 10, 3 );
+
+    // Dynamically hook into REST API saves for all custom post types
+    $custom_post_types = get_post_types( [ 'public' => true, '_builtin' => false ] );
+    // Loop through all custom post types.
+    foreach ( $custom_post_types as $post_type ) {
+        add_action( "rest_after_insert_{$post_type}", 'phlush_permalinks_flush_permalinks_function', 10, 3 );
     }
 }
 add_action( 'init', 'phlush_permalinks_hook_into_selected_actions' );
