@@ -163,7 +163,7 @@ function phlush_permalinks_render_settings_page() {
     ?>
     <div id="phlush-permalinks" class="wrap">
         <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-        <p><?php esc_attr_e( 'Brought to you by', 'phlush-permalinks' ); ?> <a href="https://robertdevore.com/" target="_blank"><?php esc_attr_e( 'Robert DeVore', 'phlush-permalinks' ) ?></a> | <a href="https://robertdevore.com/contact">Get Support</a> | <a href="https://robertdevore.com/page-speed-optimization">Speed Tips</a> | <a href="https://robertdevore.com/wordpress-security-audit/">Security Audit</a></p>
+        <p><?php esc_attr_e( 'Brought to you by', 'phlush-permalinks' ); ?> <a href="https://robertdevore.com/" target="_blank"><?php esc_attr_e( 'Robert DeVore', 'phlush-permalinks' ) ?></a> | <a href="https://robertdevore.com/contact">Get Support</a></p>
         <hr />
         <form method="post" action="options.php">
             <?php
@@ -192,7 +192,7 @@ function phlush_permalinks_register_settings() {
     register_setting( PHLUSH_PERMALINKS_PLUGIN_SLUG, PHLUSH_PERMALINKS_ACTIONS_OPTION_NAME, [
         'type'              => 'array',
         'sanitize_callback' => 'phlush_permalinks_sanitize_actions',
-        'default'           => array_keys( phlush_permalinks_get_available_actions() ), // Auto-select all by default
+        'default'           => array_keys( phlush_permalinks_get_available_actions() ),
     ] );
 
     add_settings_section(
