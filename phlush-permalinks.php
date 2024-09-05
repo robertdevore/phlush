@@ -62,12 +62,12 @@ register_deactivation_hook( __FILE__, 'phlush_permalinks_clear_scheduled_event' 
  * @since  1.0.0
  */
 function phlush_permalinks_add_custom_cron_interval( $schedules ) {
-    $interval = absint( get_option( PHLUSH_PERMALINKS_OPTION_NAME, 5 ) ); // Sanitize interval value
+    $interval = absint( get_option( PHLUSH_PERMALINKS_OPTION_NAME, 5 ) );
 
     // Create custom interval.
     $schedules['phlush_permalinks_custom_interval'] = [
         'interval' => $interval * 60, // Convert minutes to seconds
-        'display'  => esc_html__( "Custom Interval ({$interval} minutes)", 'phlush-permalinks' ),
+        'display'  => sprintf( esc_html__( 'Custom Interval (%d minutes)', 'phlush-permalinks' ), $interval ),
     ];
     return $schedules;
 }
