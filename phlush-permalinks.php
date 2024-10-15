@@ -24,6 +24,18 @@ if ( ! defined( 'WPINC' ) ) {
     exit;
 }
 
+require 'plugin-update-checker/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$myUpdateChecker = PucFactory::buildUpdateChecker(
+	'https://github.com/robertdevore/phlush-permalinks/',
+	__FILE__,
+	'phlush-permalinks'
+);
+
+//Set the branch that contains the stable release.
+$myUpdateChecker->setBranch( 'main' );
+
 // Plugin constants.
 define( 'PHLUSH_PERMALINKS__VERSION', '1.0.0' );
 define( 'PHLUSH_PERMALINKS_PLUGIN_SLUG', 'phlush_permalinks_plugin' );
